@@ -31,27 +31,17 @@ class ShareDownloadActivity : AppCompatActivity() {
     private var pendingUrl: String? = null
     private var pendingFileName: String? = null
 
-    // ==========================================================
-    // BURAYA ÖZ AÇARLARINI (KEY) ƏLAVƏ ET
-    // Hər açarı dırnaq içində yaz və aralarına vergül qoy.
-    // Nümunə: "birinci_acar", "ikinci_acar", "ucuncu_acar"
-    // ==========================================================
+    // BURAYA ÖZ AÇARLARINI YAZ (Hər açarı dırnaq içində, aralara vergül qoy)
     private val VIDFETCH_API_KEYS = listOf(
-        "vf_live_sk_adffa88a95430016b68d3e29e612c41b7d6b096a37290a17",
-        "vf_live_sk_dde5e332558b15a46f92c2da8aab4add9b9a290c03ca146b",
-        "vf_live_sk_b5070ec26ed2681d7af898d43c3d338e72f5ccdaab7bcf6d"
-        // Əgər 3-cü açarın varsa, yuxarıdaki sətrin sonuna vergül qoyub bunu da əlavə et:
-        // , "BURAYA_3_CU_ACARI_YAZ"
+        "BURAYA_1_CI_ACARI_YAZ",
+        "BURAYA_2_CI_ACARI_YAZ",
+        "BURAYA_3_CU_ACARI_YAZ"
     )
-    
-    // Açarları növbə ilə dəyişmək üçün sayğac
     private var currentKeyIndex = 0
 
-    // Növbəti açarı seçən funksiya
     private fun getNextApiKey(): String {
         if (VIDFETCH_API_KEYS.isEmpty()) return ""
         val key = VIDFETCH_API_KEYS[currentKeyIndex]
-        // Sayğacı artırırıq ki, növbəti dəfə digər açarı istifadə etsin
         currentKeyIndex = (currentKeyIndex + 1) % VIDFETCH_API_KEYS.size
         return key
     }
@@ -60,14 +50,11 @@ class ShareDownloadActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            pendingUrl?.let { url ->
-                pendingFileName?.let { name -> executeDownload(url, name) }
-            }
+            pendingUrl?.let { url -> pendingFileName?.let { name -> executeDownload(url, name) } }
         } else {
             Toast.makeText(this, "Yazma icazəsi verilmədi.", Toast.LENGTH_LONG).show()
         }
-        pendingUrl = null
-        pendingFileName = null
+        pendingUrl = null; pendingFileName = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,114 +106,82 @@ class ShareDownloadActivity : AppCompatActivity() {
         }
     }
 
-    // --- YouTube üçün VidFetch API və Keyfiyyət Seçimi ---
-    private fun fetchYouTubeInfo(url: String) {
-        // Hər sorğuda avtomatik növbəti açarı götürür
-        val activeKey = getNextApiKey() 
+    // --- YouTube: Açar Rotasiyası ilə ---
+    private fun fetchYouTubeInfo(url: String, retryCount: Int = 0) {
+        if (retryCount >= VIDFETCH_API_KEYS.size) {
+            showError("YouTube xətası: Bütün API açarları yoxlanıldı, heç biri işləmədi.")
+            return
+        }
 
-        val jsonBody = JSONObject().apply {
-            put("url", url)
-        }.toString()
+        val activeKey = getNextApiKey()
+        val jsonBody = JSONObject().apply { put("url", url) }.toString()
 
         val request = Request.Builder()
             .url("https://api.vidfetch.dev/v1/downloads")
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
-            .header("Authorization", "Bearer $activeKey") 
+            .header("Authorization", "Bearer $activeKey")
             .header("Content-Type", "application/json")
             .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                runOnUiThread { showError("Şəbəkə xətası!") }
+                runOnUiThread { fetchYouTubeInfo(url, retryCount + 1) } // Növbəti açarı yoxla
             }
 
             override fun onResponse(call: Call, response: Response) {
                 response.use { resp ->
-                    val body = resp.body?.string()
-                    if (body.isNullOrBlank()) {
-                        runOnUiThread { showError("YouTube video çözümlənə bilmədi.") }
+                    if (resp.code == 401 || resp.code == 403 || resp.code == 402) {
+                        // Açar xətalıdır və ya limit bitib -> Növbəti açarı yoxla
+                        runOnUiThread { fetchYouTubeInfo(url, retryCount + 1) }
                         return
                     }
+
+                    val body = resp.body?.string()
+                    if (body.isNullOrBlank()) {
+                        runOnUiThread { fetchYouTubeInfo(url, retryCount + 1) }
+                        return
+                    }
+
                     try {
                         val json = JSONObject(body)
-                        
                         val formatsArray = json.optJSONArray("formats") ?: json.optJSONArray("links")
-                        
+
                         if (formatsArray != null && formatsArray.length() > 0) {
                             val qualities = ArrayList<Pair<String, String>>()
                             for (i in 0 until formatsArray.length()) {
                                 val fmt = formatsArray.getJSONObject(i)
                                 val quality = fmt.optString("quality", fmt.optString("format_note", "Video"))
                                 val link = fmt.optString("url")
-                                if (link.isNotEmpty()) {
-                                    qualities.add(Pair(quality, link))
-                                }
+                                if (link.isNotEmpty()) qualities.add(Pair(quality, link))
                             }
-                            
                             if (qualities.isNotEmpty()) {
                                 qualities.sortByDescending { extractResolution(it.first) }
                                 runOnUiThread { showQualitySelection(qualities) }
                                 return
                             }
                         }
-                        
+
                         val videoUrl = json.optString("url")
                         if (videoUrl.isNotEmpty()) {
                             runOnUiThread { setupSingleYouTubeButton(videoUrl) }
                         } else {
-                            val errorMsg = json.optString("message", "YouTube video çözümlənə bilmədi (Limit bitmiş ola bilər).")
-                            runOnUiThread { showError(errorMsg) }
+                            runOnUiThread { fetchYouTubeInfo(url, retryCount + 1) }
                         }
-
                     } catch (e: Exception) {
-                        runOnUiThread { showError("YouTube video çözümlənə bilmədi.") }
+                        runOnUiThread { fetchYouTubeInfo(url, retryCount + 1) }
                     }
                 }
             }
         })
     }
 
-    private fun showQualitySelection(qualities: List<Pair<String, String>>) {
-        binding.progressBar.visibility = View.GONE
-        binding.tvStatus.text = "YouTube Keyfiyyət Seçimi"
-        binding.optionsContainer.visibility = View.VISIBLE
-
-        binding.btnDownloadNoWm.text = "🎥 Video Keyfiyyətini Seç"
-        binding.btnDownloadNoWm.setOnClickListener {
-            val qualityNames = qualities.map { it.first }.toTypedArray()
-            
-            AlertDialog.Builder(this)
-                .setTitle("Keyfiyyət seçin (4K/2K/1080p)")
-                .setItems(qualityNames) { _, which ->
-                    val selectedUrl = qualities[which].second
-                    val selectedQuality = qualities[which].first
-                    startDownload(selectedUrl, "QuickSave_YouTube_$selectedQuality.mp4")
-                }
-                .show()
-        }
-
-        binding.btnDownloadHD.visibility = View.GONE
-        binding.btnDownloadAudio.visibility = View.GONE
-    }
-
-    private fun setupSingleYouTubeButton(videoUrl: String) {
-        binding.progressBar.visibility = View.GONE
-        binding.tvStatus.text = "Format seçin:"
-        binding.optionsContainer.visibility = View.VISIBLE
-
-        binding.btnDownloadNoWm.text = "🎥 Video (Ən Yüksək Keyfiyyət)"
-        binding.btnDownloadNoWm.setOnClickListener { startDownload(videoUrl, "QuickSave_YouTube.mp4") }
-        binding.btnDownloadHD.visibility = View.GONE
-        binding.btnDownloadAudio.visibility = View.GONE
-    }
-
-    // --- TikTok üçün TikWM API ---
+    // --- TikTok: 2K/HD Keyfiyyət Seçimi ---
     private fun fetchTikTokInfo(url: String) {
         val apiUrl = "https://www.tikwm.com/api/".toHttpUrl().newBuilder()
             .addQueryParameter("url", url)
             .addQueryParameter("hd", "1")
             .build()
-            
+
         val request = Request.Builder().url(apiUrl).build()
 
         client.newCall(request).enqueue(object : Callback {
@@ -249,14 +204,12 @@ class ShareDownloadActivity : AppCompatActivity() {
                         }
                         val data = json.getJSONObject("data")
 
+                        // Foto yoxlaması
                         if (data.has("images") && !data.isNull("images")) {
                             val imagesArray = data.getJSONArray("images")
                             val imageUrls = ArrayList<String>()
-                            for (i in 0 until imagesArray.length()) {
-                                imageUrls.add(imagesArray.getString(i))
-                            }
-                            val title = data.optString("title", "QuickSave")
-                                .replace(Regex("[^a-zA-Z0-9-_ ]"), "").take(30).ifBlank { "Photo" }
+                            for (i in 0 until imagesArray.length()) imageUrls.add(imagesArray.getString(i))
+                            val title = data.optString("title", "QuickSave").replace(Regex("[^a-zA-Z0-9-_ ]"), "").take(30).ifBlank { "Photo" }
                             runOnUiThread { setupPhotoSelection(imageUrls, title) }
                             return
                         }
@@ -264,10 +217,14 @@ class ShareDownloadActivity : AppCompatActivity() {
                         val playUrl = data.optString("play")
                         val hdUrl = data.optString("hdplay").ifBlank { playUrl }
                         val musicUrl = data.optString("music")
-                        val title = data.optString("title", "QuickSave")
-                            .replace(Regex("[^a-zA-Z0-9-_ ]"), "").take(40).ifBlank { "Video" }
+                        val title = data.optString("title", "QuickSave").replace(Regex("[^a-zA-Z0-9-_ ]"), "").take(40).ifBlank { "Video" }
+                        
+                        // Keyfiyyət məlumatı (TikTok API adətən width/height qaytarır)
+                        val width = data.optInt("width", 1080)
+                        val height = data.optInt("height", 1920)
+                        val qualityText = "${height}p"
 
-                        runOnUiThread { setupTikTokButtons(hdUrl, musicUrl, title) }
+                        runOnUiThread { setupTikTokButtons(hdUrl, playUrl, musicUrl, title, qualityText) }
                     } catch (e: Exception) {
                         runOnUiThread { showError("TikTok video çözümlənə bilmədi.") }
                     }
@@ -276,16 +233,56 @@ class ShareDownloadActivity : AppCompatActivity() {
         })
     }
 
-    private fun setupTikTokButtons(hdUrl: String, audioUrl: String, title: String) {
+    // --- UI Qurulumu ---
+    private fun showQualitySelection(qualities: List<Pair<String, String>>) {
+        binding.progressBar.visibility = View.GONE
+        binding.tvStatus.text = "YouTube Keyfiyyət Seçimi"
+        binding.optionsContainer.visibility = View.VISIBLE
+
+        binding.btnDownloadNoWm.text = "🎥 Video Keyfiyyətini Seç"
+        binding.btnDownloadNoWm.setOnClickListener {
+            val qualityNames = qualities.map { it.first }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("Keyfiyyət seçin (4K/2K/1080p)")
+                .setItems(qualityNames) { _, which ->
+                    startDownload(qualities[which].second, "QuickSave_YouTube_${qualities[which].first}.mp4")
+                }.show()
+        }
+        binding.btnDownloadHD.visibility = View.GONE
+        binding.btnDownloadAudio.visibility = View.GONE
+    }
+
+    private fun setupSingleYouTubeButton(videoUrl: String) {
         binding.progressBar.visibility = View.GONE
         binding.tvStatus.text = "Format seçin:"
         binding.optionsContainer.visibility = View.VISIBLE
-
-        // Tək Düymə: Watermarksız HD
-        binding.btnDownloadNoWm.text = "🎥 MP4 (Watermarksız HD)"
-        binding.btnDownloadNoWm.setOnClickListener { startDownload(hdUrl, "${title}_HD.mp4") }
-
+        binding.btnDownloadNoWm.text = "🎥 Video (Ən Yüksək Keyfiyyət)"
+        binding.btnDownloadNoWm.setOnClickListener { startDownload(videoUrl, "QuickSave_YouTube.mp4") }
         binding.btnDownloadHD.visibility = View.GONE
+        binding.btnDownloadAudio.visibility = View.GONE
+    }
+
+    // TikTok: Watermark yazısı silindi, 2K/HD göstərildi
+    private fun setupTikTokButtons(hdUrl: String, standardUrl: String, audioUrl: String, title: String, currentQuality: String) {
+        binding.progressBar.visibility = View.GONE
+        binding.tvStatus.text = "Video Keyfiyyəti: $currentQuality"
+        binding.optionsContainer.visibility = View.VISIBLE
+
+        binding.btnDownloadNoWm.text = "🎥 MP4 ($currentQuality)"
+        binding.btnDownloadNoWm.setOnClickListener { startDownload(hdUrl, "${title}_$currentQuality.mp4") }
+
+        // Keyfiyyəti dəyişmək üçün ikinci düymə
+        binding.btnDownloadHD.visibility = View.VISIBLE
+        binding.btnDownloadHD.text = "⚙️ Keyfiyyəti Dəyişdir"
+        binding.btnDownloadHD.setOnClickListener {
+            val qualities = listOf("Standart (SD)" to standardUrl, "Yüksək (HD)" to hdUrl)
+            val qualityNames = qualities.map { it.first }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("TikTok Keyfiyyətini Seçin")
+                .setItems(qualityNames) { _, which ->
+                    startDownload(qualities[which].second, "${title}_${qualities[which].first}.mp4")
+                }.show()
+        }
 
         binding.btnDownloadAudio.text = "🎵 MP3 (Audio)"
         binding.btnDownloadAudio.setOnClickListener { startDownload(audioUrl, "$title.mp3") }
@@ -295,33 +292,23 @@ class ShareDownloadActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         binding.tvStatus.text = "Fotoqalereya aşkarlandı! (${imageUrls.size} şəkil)"
         binding.optionsContainer.visibility = View.VISIBLE
-
         binding.btnDownloadNoWm.text = "📸 Bütün Şəkilləri Endir"
         binding.btnDownloadNoWm.setOnClickListener {
-            imageUrls.forEachIndexed { index, url ->
-                executeDownload(url, "${title}_${index + 1}.jpg")
-            }
+            imageUrls.forEachIndexed { index, url -> executeDownload(url, "${title}_${index + 1}.jpg") }
             Toast.makeText(this, "${imageUrls.size} şəkil endirilir...", Toast.LENGTH_SHORT).show()
             finish()
         }
-
         binding.btnDownloadHD.visibility = View.GONE
         binding.btnDownloadAudio.visibility = View.GONE
     }
 
     // --- Endirmə Məntiqi ---
     private fun startDownload(url: String, fileName: String) {
-        if (url.isBlank()) {
-            Toast.makeText(this, "Link tapılmadı.", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (url.isBlank()) { Toast.makeText(this, "Link tapılmadı.", Toast.LENGTH_SHORT).show(); return }
         if (needsStoragePermission()) {
-            pendingUrl = url
-            pendingFileName = fileName
+            pendingUrl = url; pendingFileName = fileName
             storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        } else {
-            executeDownload(url, fileName)
-        }
+        } else executeDownload(url, fileName)
     }
 
     private fun needsStoragePermission(): Boolean {
@@ -332,12 +319,10 @@ class ShareDownloadActivity : AppCompatActivity() {
     private fun executeDownload(url: String, fileName: String) {
         try {
             val request = DownloadManager.Request(Uri.parse(url)).apply {
-                setTitle(fileName)
-                setDescription("Endirilir...")
+                setTitle(fileName); setDescription("Endirilir...")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-                setAllowedOverMetered(true)
-                setAllowedOverRoaming(true)
+                setAllowedOverMetered(true); setAllowedOverRoaming(true)
             }
             val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             manager.enqueue(request)
