@@ -1,18 +1,10 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <path
-        android:fillColor="#4CAF50"
-        android:pathData="M54,4 A50,50 0 1,1 53.99,4 Z" />
-
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M50,28 L58,28 L58,52 L70,52 L54,70 L38,52 L50,52 Z" />
-
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M38,76 L70,76 L70,82 L38,82 Z" />
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Premium Tünd Fon -->
+    <path android:fillColor="#121212" android:pathData="M0,0h108v108h-108z" />
+    <!-- Yaşıl Endirmə Oxu -->
+    <path android:fillColor="#4CAF50" android:pathData="M54,20 L54,70 M30,50 L54,74 L78,50" android:strokeWidth="8" android:strokeColor="#4CAF50" android:strokeLineCap="round" />
+    <!-- Alt Xətt -->
+    <path android:fillColor="#4CAF50" android:pathData="M30,85 L78,85 L78,90 L30,90 Z" />
 </vector>
