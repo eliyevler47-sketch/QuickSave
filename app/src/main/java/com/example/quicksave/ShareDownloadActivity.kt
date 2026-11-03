@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.quicksave.databinding.DialogDownloaderBinding
 import okhttp3.*
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -126,10 +127,7 @@ class ShareDownloadActivity : AppCompatActivity() {
                         if (status == "stream" || status == "redirect") {
                             val videoUrl = json.getString("url")
                             val audioUrl = json.optString("audio", videoUrl)
-
-                            runOnUiThread {
-                                setupYouTubeButtons(videoUrl, audioUrl)
-                            }
+                            runOnUiThread { setupYouTubeButtons(videoUrl, audioUrl) }
                         } else {
                             val errorText = json.optString("text", "YouTube video çözümlənə bilmədi.")
                             runOnUiThread { showError(errorText) }
@@ -142,10 +140,14 @@ class ShareDownloadActivity : AppCompatActivity() {
         })
     }
 
-    // --- TikTok üçün TikWM API ---
+    // --- TikTok üçün TikWM API --- (BURADA DÜZƏLİŞ EDİLDİ)
     private fun fetchTikTokInfo(url: String) {
-        val apiUrl = "https://www.tikwm.com/api/?url=$url&hd=1".toHttpUrlOrNull()
-        val request = Request.Builder().url(apiUrl!!).build()
+        val apiUrl = "https://www.tikwm.com/api/".toHttpUrl().newBuilder()
+            .addQueryParameter("url", url)
+            .addQueryParameter("hd", "1")
+            .build()
+            
+        val request = Request.Builder().url(apiUrl).build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -167,7 +169,7 @@ class ShareDownloadActivity : AppCompatActivity() {
                         }
                         val data = json.getJSONObject("data")
 
-                        // Foto göndərişi yoxlaması (images massivi)
+                        // Foto göndərişi yoxlaması
                         if (data.has("images") && !data.isNull("images")) {
                             val imagesArray = data.getJSONArray("images")
                             val imageUrls = ArrayList<String>()
