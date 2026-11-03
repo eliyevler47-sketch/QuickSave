@@ -12,7 +12,7 @@
     <queries>
         <intent>
             <action android:name="android.intent.action.SEND" />
-            <data android:mimeType="text/plain" />
+            <data android:mimeType="text/*" />
         </intent>
     </queries>
 
@@ -40,12 +40,14 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.Material3.DayNight.Dialog">
 
+            <!-- Paylaş menyusunda görünməsi üçün text/* istifadə edirik -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/*" /> 
             </intent-filter>
 
+            <!-- Brauzerdən birbaşa TikTok linkinə klikləyəndə açılması üçün -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
