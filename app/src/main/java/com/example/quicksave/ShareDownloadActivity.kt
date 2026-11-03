@@ -1,6 +1,7 @@
 package com.example.quicksave
 
 import android.Manifest
+import android.app.AlertDialog
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
@@ -29,6 +30,31 @@ class ShareDownloadActivity : AppCompatActivity() {
     private lateinit var client: OkHttpClient
     private var pendingUrl: String? = null
     private var pendingFileName: String? = null
+
+    // ==========================================================
+    // BURAYA ÖZ AÇARLARINI (KEY) ƏLAVƏ ET
+    // Hər açarı dırnaq içində yaz və aralarına vergül qoy.
+    // Nümunə: "birinci_acar", "ikinci_acar", "ucuncu_acar"
+    // ==========================================================
+    private val VIDFETCH_API_KEYS = listOf(
+        "vf_live_sk_adffa88a95430016b68d3e29e612c41b7d6b096a37290a17",
+        "vf_live_sk_dde5e332558b15a46f92c2da8aab4add9b9a290c03ca146b",
+        "vf_live_sk_b5070ec26ed2681d7af898d43c3d338e72f5ccdaab7bcf6d"
+        // Əgər 3-cü açarın varsa, yuxarıdaki sətrin sonuna vergül qoyub bunu da əlavə et:
+        // , "BURAYA_3_CU_ACARI_YAZ"
+    )
+    
+    // Açarları növbə ilə dəyişmək üçün sayğac
+    private var currentKeyIndex = 0
+
+    // Növbəti açarı seçən funksiya
+    private fun getNextApiKey(): String {
+        if (VIDFETCH_API_KEYS.isEmpty()) return ""
+        val key = VIDFETCH_API_KEYS[currentKeyIndex]
+        // Sayğacı artırırıq ki, növbəti dəfə digər açarı istifadə etsin
+        currentKeyIndex = (currentKeyIndex + 1) % VIDFETCH_API_KEYS.size
+        return key
+    }
 
     private val storagePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -93,19 +119,19 @@ class ShareDownloadActivity : AppCompatActivity() {
         }
     }
 
-    // --- YouTube üçün Cobalt API ---
+    // --- YouTube üçün VidFetch API və Keyfiyyət Seçimi ---
     private fun fetchYouTubeInfo(url: String) {
+        // Hər sorğuda avtomatik növbəti açarı götürür
+        val activeKey = getNextApiKey() 
+
         val jsonBody = JSONObject().apply {
             put("url", url)
-            put("vQuality", "max") // 1080p, 1440p, 2160p (4K) ən yüksək keyfiyyət
-            put("vCodec", "h264")
-            put("aFormat", "mp3")
         }.toString()
 
         val request = Request.Builder()
-            .url("https://api.cobalt.tools/api/json")
+            .url("https://api.vidfetch.dev/v1/downloads")
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
-            .header("Accept", "application/json")
+            .header("Authorization", "Bearer $activeKey") 
             .header("Content-Type", "application/json")
             .build()
 
@@ -123,15 +149,35 @@ class ShareDownloadActivity : AppCompatActivity() {
                     }
                     try {
                         val json = JSONObject(body)
-                        val status = json.optString("status")
-                        if (status == "stream" || status == "redirect") {
-                            val videoUrl = json.getString("url")
-                            val audioUrl = json.optString("audio", videoUrl)
-                            runOnUiThread { setupYouTubeButtons(videoUrl, audioUrl) }
-                        } else {
-                            val errorText = json.optString("text", "YouTube video çözümlənə bilmədi.")
-                            runOnUiThread { showError(errorText) }
+                        
+                        val formatsArray = json.optJSONArray("formats") ?: json.optJSONArray("links")
+                        
+                        if (formatsArray != null && formatsArray.length() > 0) {
+                            val qualities = ArrayList<Pair<String, String>>()
+                            for (i in 0 until formatsArray.length()) {
+                                val fmt = formatsArray.getJSONObject(i)
+                                val quality = fmt.optString("quality", fmt.optString("format_note", "Video"))
+                                val link = fmt.optString("url")
+                                if (link.isNotEmpty()) {
+                                    qualities.add(Pair(quality, link))
+                                }
+                            }
+                            
+                            if (qualities.isNotEmpty()) {
+                                qualities.sortByDescending { extractResolution(it.first) }
+                                runOnUiThread { showQualitySelection(qualities) }
+                                return
+                            }
                         }
+                        
+                        val videoUrl = json.optString("url")
+                        if (videoUrl.isNotEmpty()) {
+                            runOnUiThread { setupSingleYouTubeButton(videoUrl) }
+                        } else {
+                            val errorMsg = json.optString("message", "YouTube video çözümlənə bilmədi (Limit bitmiş ola bilər).")
+                            runOnUiThread { showError(errorMsg) }
+                        }
+
                     } catch (e: Exception) {
                         runOnUiThread { showError("YouTube video çözümlənə bilmədi.") }
                     }
@@ -140,7 +186,41 @@ class ShareDownloadActivity : AppCompatActivity() {
         })
     }
 
-    // --- TikTok üçün TikWM API --- (BURADA DÜZƏLİŞ EDİLDİ)
+    private fun showQualitySelection(qualities: List<Pair<String, String>>) {
+        binding.progressBar.visibility = View.GONE
+        binding.tvStatus.text = "YouTube Keyfiyyət Seçimi"
+        binding.optionsContainer.visibility = View.VISIBLE
+
+        binding.btnDownloadNoWm.text = "🎥 Video Keyfiyyətini Seç"
+        binding.btnDownloadNoWm.setOnClickListener {
+            val qualityNames = qualities.map { it.first }.toTypedArray()
+            
+            AlertDialog.Builder(this)
+                .setTitle("Keyfiyyət seçin (4K/2K/1080p)")
+                .setItems(qualityNames) { _, which ->
+                    val selectedUrl = qualities[which].second
+                    val selectedQuality = qualities[which].first
+                    startDownload(selectedUrl, "QuickSave_YouTube_$selectedQuality.mp4")
+                }
+                .show()
+        }
+
+        binding.btnDownloadHD.visibility = View.GONE
+        binding.btnDownloadAudio.visibility = View.GONE
+    }
+
+    private fun setupSingleYouTubeButton(videoUrl: String) {
+        binding.progressBar.visibility = View.GONE
+        binding.tvStatus.text = "Format seçin:"
+        binding.optionsContainer.visibility = View.VISIBLE
+
+        binding.btnDownloadNoWm.text = "🎥 Video (Ən Yüksək Keyfiyyət)"
+        binding.btnDownloadNoWm.setOnClickListener { startDownload(videoUrl, "QuickSave_YouTube.mp4") }
+        binding.btnDownloadHD.visibility = View.GONE
+        binding.btnDownloadAudio.visibility = View.GONE
+    }
+
+    // --- TikTok üçün TikWM API ---
     private fun fetchTikTokInfo(url: String) {
         val apiUrl = "https://www.tikwm.com/api/".toHttpUrl().newBuilder()
             .addQueryParameter("url", url)
@@ -169,7 +249,6 @@ class ShareDownloadActivity : AppCompatActivity() {
                         }
                         val data = json.getJSONObject("data")
 
-                        // Foto göndərişi yoxlaması
                         if (data.has("images") && !data.isNull("images")) {
                             val imagesArray = data.getJSONArray("images")
                             val imageUrls = ArrayList<String>()
@@ -188,7 +267,7 @@ class ShareDownloadActivity : AppCompatActivity() {
                         val title = data.optString("title", "QuickSave")
                             .replace(Regex("[^a-zA-Z0-9-_ ]"), "").take(40).ifBlank { "Video" }
 
-                        runOnUiThread { setupTikTokButtons(playUrl, hdUrl, musicUrl, title) }
+                        runOnUiThread { setupTikTokButtons(hdUrl, musicUrl, title) }
                     } catch (e: Exception) {
                         runOnUiThread { showError("TikTok video çözümlənə bilmədi.") }
                     }
@@ -197,32 +276,16 @@ class ShareDownloadActivity : AppCompatActivity() {
         })
     }
 
-    // --- UI Qurulumu ---
-    private fun setupYouTubeButtons(videoUrl: String, audioUrl: String) {
+    private fun setupTikTokButtons(hdUrl: String, audioUrl: String, title: String) {
         binding.progressBar.visibility = View.GONE
         binding.tvStatus.text = "Format seçin:"
         binding.optionsContainer.visibility = View.VISIBLE
 
-        binding.btnDownloadNoWm.text = "🎥 Video (Ən Yüksək Keyfiyyət - 4K/HD)"
-        binding.btnDownloadNoWm.setOnClickListener { startDownload(videoUrl, "QuickSave_YouTube.mp4") }
+        // Tək Düymə: Watermarksız HD
+        binding.btnDownloadNoWm.text = "🎥 MP4 (Watermarksız HD)"
+        binding.btnDownloadNoWm.setOnClickListener { startDownload(hdUrl, "${title}_HD.mp4") }
 
         binding.btnDownloadHD.visibility = View.GONE
-
-        binding.btnDownloadAudio.text = "🎵 Audio (MP3)"
-        binding.btnDownloadAudio.setOnClickListener { startDownload(audioUrl, "QuickSave_YouTube.mp3") }
-    }
-
-    private fun setupTikTokButtons(noWmUrl: String, hdUrl: String, audioUrl: String, title: String) {
-        binding.progressBar.visibility = View.GONE
-        binding.tvStatus.text = "Format seçin:"
-        binding.optionsContainer.visibility = View.VISIBLE
-
-        binding.btnDownloadNoWm.text = "🎥 MP4 (Watermarksız)"
-        binding.btnDownloadNoWm.setOnClickListener { startDownload(noWmUrl, "${title}_no_wm.mp4") }
-
-        binding.btnDownloadHD.text = "🎥 MP4 (HD Keyfiyyət)"
-        binding.btnDownloadHD.visibility = View.VISIBLE
-        binding.btnDownloadHD.setOnClickListener { startDownload(hdUrl, "${title}_hd.mp4") }
 
         binding.btnDownloadAudio.text = "🎵 MP3 (Audio)"
         binding.btnDownloadAudio.setOnClickListener { startDownload(audioUrl, "$title.mp3") }
@@ -283,6 +346,11 @@ class ShareDownloadActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Endirmə başladıla bilmədi.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun extractResolution(quality: String): Int {
+        val match = Regex("\\d+").find(quality)
+        return match?.value?.toIntOrNull() ?: 0
     }
 
     private fun showError(message: String) {
