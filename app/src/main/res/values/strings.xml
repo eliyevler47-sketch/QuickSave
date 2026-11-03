@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">QuickSave</string>
+    <string name="main_title">QuickSave</string>
+    <string name="main_instructions">TikTok və digər platformalarda videonu paylaşarkən "QuickSave" seçin — pəncərə açılacaq və format seçəcəksiniz.</string>
+    <string name="main_hint">MP4 (Watermarksız) • MP4 (HD) • MP3 (Audio)</string>
+
+    <string name="status_analyzing">Link analiz edilir…</string>
+    <string name="status_choose_format">Format seçin:</string>
+
+    <string name="btn_no_wm">MP4 (Watermarksız)</string>
+    <string name="btn_hd">MP4 (HD)</string>
+    <string name="btn_audio">MP3 (Audio)</string>
+
+    <string name="download_started">Endirmə başladı.</string>
+    <string name="download_in_progress">Endirilir…</string>
+
+    <string name="error_no_link">Bağlantı tapılmadı!</string>
+    <string name="error_network">Şəbəkə xətası!</string>
+    <string name="error_parse">Video çözümlənə bilmədi.</string>
+    <string name="error_permission_denied">Yazma icazəsi verilmədi.</string>
+    <string name="error_download">Endirmə başladıla bilmədi.</string>
+</resources>
