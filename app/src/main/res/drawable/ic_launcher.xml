@@ -3,19 +3,54 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- PowerPoint Narıncı Fonu -->
+    
+    <!-- Premium Tünd Mavi Arxa Fon -->
     <path
-        android:fillColor="#D24726"
-        android:pathData="M20,0 L88,0 A20,20 0 0,1 108,20 L108,88 A20,20 0 0,1 88,108 L20,108 A20,20 0 0,1 0,88 L0,20 A20,20 0 0,1 20,0 Z" />
-    <!-- Ağ rəngli Endirmə Oxu -->
+        android:fillColor="#0F172A"
+        android:pathData="M54,4 C81.6,4 104,26.4 104,54 C104,81.6 81.6,104 54,104 C26.4,104 4,81.6 4,54 C4,26.4 26.4,4 54,4 Z" />
+
+    <!-- İtin Qulaqları (Sol və Sağ) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,25 L54,65 M35,50 L54,70 L73,50" 
-        android:strokeWidth="8"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round" />
-    <!-- Alt xətt -->
+        android:fillColor="#F8FAFC"
+        android:pathData="M30,40 C22,50 25,75 38,80 C40,65 38,50 30,40 Z" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M35,80 L73,80 A4,4 0 0,1 73,88 L35,88 A4,4 0 0,1 35,80 Z" />
+        android:fillColor="#F8FAFC"
+        android:pathData="M78,40 C86,50 83,75 70,80 C68,65 70,50 78,40 Z" />
+
+    <!-- İtin Üzü (Baş hissəsi) -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M54,28 C72,28 82,45 82,65 C82,85 70,92 54,92 C38,92 26,85 26,65 C26,45 36,28 54,28 Z" />
+
+    <!-- Gözlər -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M44,58 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M56,58 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+
+    <!-- Burun və Ağız -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M54,66 C58,66 60,68 60,70 C60,73 56,76 54,76 C52,76 48,73 48,70 C48,68 50,66 54,66 Z" />
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M54,76 L54,80 M54,80 L50,84 M54,80 L58,84" 
+        android:strokeWidth="2" android:strokeColor="#0F172A" android:strokeLineCap="round" />
+
+    <!-- Premium Qızıl Papyon (Bowtie) -->
+    <!-- Sol tərəf -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M54,86 L42,78 L42,94 Z" />
+    <!-- Sağ tərəf -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M54,86 L66,78 L66,94 Z" />
+    <!-- Mərkəzi düyün -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M54,86 a3,3 0 1,0 0,-6 a3,3 0 1,0 0,6" />
+
 </vector>
