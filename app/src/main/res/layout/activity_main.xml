@@ -28,12 +28,21 @@
         android:text="@string/main_instructions"
         android:textSize="16sp" />
 
-    <TextView
+    <!-- BİRBAŞA TƏTBİQİN İÇİNDƏN TEST ETMƏK ÜÇÜN -->
+    <EditText
+        android:id="@+id/etUrl"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:gravity="center"
-        android:text="@string/main_hint"
-        android:textSize="14sp"
-        android:textStyle="italic" />
+        android:hint="Və ya buraya TikTok linkini yapışdırın..."
+        android:inputType="textUri"
+        android:padding="12dp" />
+
+    <Button
+        android:id="@+id/btnFetch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Analiz Et və Endir" />
+
 </LinearLayout>
