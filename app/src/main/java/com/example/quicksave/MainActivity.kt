@@ -12,7 +12,6 @@ class MainActivity : AppCompatActivity() {
         val binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Düyməyə basanda linki götürüb pəncərəni (dialoqu) açırıq
         binding.btnFetch.setOnClickListener {
             val url = binding.etUrl.text.toString().trim()
             if (url.isNotEmpty()) {
